@@ -2,13 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# --- Configuration ---
-# Target viscosity (The sharp shock you want)
 target_nu = 0.0001   
-# Starting viscosity (The easy smooth wave)
 start_nu = 0.2       
 
-epochs = 35000       # Increased epochs to give time for annealing
+epochs = 35000       
 batch_size = 200    
 lr = 1e-3
 gamma = 0.9
@@ -17,9 +14,7 @@ w_pde = 1.0
 w_ic = 10.0
 w_bc = 10.0
 
-# --- Helper Functions ---
 
-# UPDATED: Now accepts 'nu_val' so the solution gets sharper over time
 def get_exact_solution(x, y, t, nu_val):
     arg = (x + y - t) / (4 * nu_val)
     wave = np.tanh(arg)
@@ -32,11 +27,9 @@ def d_tanh(x): return 1 - np.tanh(x)**2
 def dd_tanh(x): t = np.tanh(x); return -2 * t * (1 - t**2)
 def ddd_tanh(x): t = np.tanh(x); return (-2 + 6*t**2) * (1 - t**2)
 
-# --- Neural Network Classes ---
 
 class Linear:
     def __init__(self, in_f, out_f):
-        # FIX: Changed to Xavier Initialization (better for Tanh/PINNs)
         self.W = np.random.randn(out_f, in_f) * np.sqrt(1/in_f)
         self.b = np.zeros((out_f, 1))
         self.vW = np.zeros_like(self.W)
@@ -141,7 +134,6 @@ class PINN:
                 layer.step(l_grads[idx], lr, gamma)
                 idx+=1
 
-# --- Main Training Loop ---
 
 net = PINN([3, 40, 40, 40, 2])
 
@@ -150,13 +142,9 @@ print(f"Annealing Nu: {start_nu} -> {target_nu}")
 
 for epoch in range(epochs + 1):
     
-    # --- ANNEALING STEP ---
-    # Calculate current viscosity for this epoch (Logarithmic decay is best)
-    # This slowly lowers nu from 0.2 down to 0.0001
     decay_rate = np.log(target_nu / start_nu) / epochs
     current_nu = start_nu * np.exp(decay_rate * epoch)
     
-    # 1. PDE LOSS (Physics)
     x_c = np.random.uniform(-1, 1, (1, batch_size))
     y_c = np.random.uniform(-1, 1, (1, batch_size))
     t_c = np.random.uniform(0, 0.5, (1, batch_size))
@@ -170,7 +158,6 @@ for epoch in range(epochs + 1):
     uxx, vxx = uv_xx[0:1], uv_xx[1:2]
     uyy, vyy = uv_yy[0:1], uv_yy[1:2]
     
-    # Use current_nu for the physics equation
     f_u = ut + u*ux + v*uy - current_nu*(uxx + uyy)
     f_v = vt + u*vx + v*vy - current_nu*(vxx + vyy)
     
@@ -191,14 +178,12 @@ for epoch in range(epochs + 1):
         np.vstack([-current_nu*dfu, -current_nu*dfv])        
     )
 
-    # 2. INITIAL CONDITION LOSS
     x_i = np.random.uniform(-1, 1, (1, 100))
     y_i = np.random.uniform(-1, 1, (1, 100))
     t_i = np.zeros_like(x_i)
     X_i = np.vstack([x_i, y_i, t_i])
     
     uv_i, _, _, _, _, _ = net.forward(X_i)
-    # Important: The "True" solution we match against must also use current_nu
     u_true_i, v_true_i = get_exact_solution(x_i, y_i, t_i, current_nu)
     
     diff_u_i = uv_i[0] - u_true_i
@@ -211,7 +196,6 @@ for epoch in range(epochs + 1):
         np.zeros_like(uv_i), np.zeros_like(uv_i)
     )
 
-    # 3. BOUNDARY CONDITION LOSS
     nb = 50 
     yb_v = np.random.uniform(-1, 1, (1, nb))
     xb_h = np.random.uniform(-1, 1, (1, nb))
@@ -222,7 +206,6 @@ for epoch in range(epochs + 1):
     X_b = np.vstack([xb, yb, tb])
     
     uv_b, _, _, _, _, _ = net.forward(X_b)
-    # Boundary target must also adapt to current_nu
     u_true_b, v_true_b = get_exact_solution(xb, yb, tb, current_nu)
     
     diff_u_b = uv_b[0] - u_true_b
@@ -235,7 +218,6 @@ for epoch in range(epochs + 1):
         np.zeros_like(uv_b), np.zeros_like(uv_b)
     )
 
-    # 4. UPDATE
     final_grads = []
     for g1, g2, g3 in zip(grads_f, grads_i, grads_b):
         dw = w_pde*g1[0] + w_ic*g2[0] + w_bc*g3[0]
@@ -266,7 +248,6 @@ X_flat = np.vstack([
 uv_pred, _, _, _, _, _ = net.forward(X_flat)
 u_pred = uv_pred[0].reshape(N, N)
 
-# Compare against the final target viscosity
 u_true, _ = get_exact_solution(Xg, Yg, t_val, target_nu)
 
 fig = plt.figure(figsize=(14, 10))
@@ -291,8 +272,7 @@ plt.colorbar(cf4, ax=ax4)
 
 plt.suptitle(f"2D Burgers - Sharp Shock Wave Simulation (Nu={target_nu})", fontsize=16)
 
-# 1D Cuts to see the steepness
-N_slice = 200 # More points to see the sharp line
+N_slice = 200 
 x_slice = np.linspace(-1, 1, N_slice)
 y_slice = np.zeros_like(x_slice)
 times = [0.0, 0.4]

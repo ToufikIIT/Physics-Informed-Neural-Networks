@@ -3,18 +3,18 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
-# --- CONFIGURATION ---
+
 N_modes = 5
 iterations = 12000    
 learning_rate = 1e-3
 
-# Set seed for reproducibility (Optional but recommended)
+
 #torch.manual_seed(42)
 #np.random.seed(42)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# --- PINN MODEL ---
+#  PINN MODEL
 class PINN(nn.Module):
     def __init__(self):
         super(PINN, self).__init__()
@@ -41,7 +41,7 @@ class PINN(nn.Module):
         inputs = torch.cat([x, y], axis=1)
         return self.net(inputs)
 
-# --- LOSS FUNCTION ---
+#LOSS FUNCTION 
 def compute_loss(model, x_col, y_col, N):
     # 1. Physics Loss (Interior)
     phi = model(x_col, y_col)
@@ -106,7 +106,7 @@ loss_history = []
 for i in range(iterations):
     optimizer.zero_grad()
     
-    # FIX: Sample NEW collocation points every iteration to avoid overfitting
+   
     x_col = torch.rand(2000, 1, device=device, requires_grad=True)
     y_col = torch.rand(2000, 1, device=device, requires_grad=True)
     

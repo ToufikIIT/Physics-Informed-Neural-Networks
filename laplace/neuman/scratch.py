@@ -268,14 +268,14 @@ import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
 N_modes = 3           
-epochs = 5000        # More epochs to refine the interior
+epochs = 5000        
 lr = 0.001            
 beta1, beta2 = 0.9, 0.999
 epsilon = 1e-8        
 
-# --- WEIGHTS (Crucial for balancing) ---
-w_pde = 2.0           # Increased weight for Physics
-w_bc = 10.0           # Boundary weight
+
+w_pde = 2.0           
+w_bc = 10.0           
 
 # --- ACTIVATION FUNCTIONS ---
 def tanh(x): return np.tanh(x)
@@ -333,7 +333,6 @@ class Tanh:
         return self.a, self.a_x, self.a_y, self.a_xx, self.a_yy
 
     def backward(self, d_a, d_ax, d_ay, d_axx, d_ayy):
-        # Full Chain Rule (Recovered from previous step)
         term1 = d_a * self.ds
         term2 = d_ax * self.dds * self.z_x + d_ay * self.dds * self.z_y
         term3 = d_axx * (dd_tanh(self.z)*(self.z_x**2)*-2*self.s + self.dds*self.z_xx) # Approx for speed
@@ -376,7 +375,6 @@ class PINN:
 net = PINN([2, 50, 50, 50, 1])
 
 for epoch in range(epochs + 1):
-    # 1. PDE LOSS (Sample 1000 points! High volume sampling fixes the "Droop")
     X_c = np.random.rand(2, 1000) 
     u, ux, uy, uxx, uyy = net.forward(X_c)
     res = uxx + uyy

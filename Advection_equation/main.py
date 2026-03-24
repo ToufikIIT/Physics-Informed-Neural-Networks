@@ -306,51 +306,37 @@ def plot_3d(net, t):
     plt.show()
 
 
+plot_3d(net, t=0.2)
 plot_3d(net, t=0.5)
+plot_3d(net, t=0.9)
 
 
 def animate_solution(net):
-
     x = np.linspace(0,1,100)
     y = np.linspace(0,1,100)
-    X, Y = np.meshgrid(x,y)
+    X,Y = np.meshgrid(x,y)
 
-    fig, ax = plt.subplots(figsize=(6,5))
-
-    img = ax.imshow(np.zeros_like(X),
-                    extent=[0,1,0,1],
-                    origin='lower',
-                    cmap='jet',
-                    vmin=-1, vmax=1)
+    fig,ax = plt.subplots()
+    img = ax.imshow(np.zeros_like(X),extent=[0,1,0,1],
+                    origin='lower',cmap='jet',vmin=-1,vmax=1)
 
     plt.colorbar(img)
-    ax.set_title("Temperature Evolution")
 
     def update(frame):
-        t = frame
-
-        XYT = np.vstack([
-            X.flatten(),
-            Y.flatten(),
-            np.ones_like(X.flatten())*t
-        ])
-
-        pred, *_ = net.forward(XYT)
+        XYT = np.vstack([X.flatten(),Y.flatten(),
+                         np.ones_like(X.flatten())*frame])
+        pred,*_ = net.forward(XYT)
         Z = pred.reshape(X.shape)
 
         img.set_array(Z)
-
-        ax.set_title(f"t = {t:.2f}")
+        ax.set_title(f"t={frame:.2f}")
         return [img]
 
-    frames = np.linspace(0,1,50)
+    ani = animation.FuncAnimation(fig,update,
+                                  frames=np.linspace(0,1,50),
+                                  interval=100)
 
-    ani = animation.FuncAnimation(
-        fig,
-        update,
-        frames=frames,
-        interval=100,
-        blit=False
-    )
+    plt.show()
+    return ani
 
-plt.show()
+ani = animate_solution(net)

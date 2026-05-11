@@ -311,7 +311,7 @@ plot_3d(net, t=0.5)
 plot_3d(net, t=0.9)
 
 
-def animate_solution(net):
+""" def animate_solution(net):
     x = np.linspace(0,1,100)
     y = np.linspace(0,1,100)
     X,Y = np.meshgrid(x,y)
@@ -339,4 +339,51 @@ def animate_solution(net):
     plt.show()
     return ani
 
-ani = animate_solution(net)
+ani = animate_solution(net) """
+
+
+def animate_3d_decay(net):
+
+    x = np.linspace(0,1,40)
+    y = np.linspace(0,1,40)
+    X, Y = np.meshgrid(x,y)
+
+    fig = plt.figure(figsize=(10,7))
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.set_zlim(-1,1)
+
+    def update(frame):
+        ax.clear()
+
+        t = frame
+
+        XYT = np.vstack([
+            X.flatten(),
+            Y.flatten(),
+            np.ones_like(X.flatten())*t
+        ])
+
+        pred, *_ = net.forward(XYT)
+        Z = pred.reshape(X.shape)
+
+        ax.plot_surface(X, Y, Z, cmap='viridis')
+
+        ax.set_title(f"3D Decay | t={t:.2f}")
+        ax.set_zlim(-1,1)
+
+        return []
+
+    frames = np.linspace(0,1,40)
+
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=frames,
+        interval=120
+    )
+
+    plt.show()
+    return ani
+
+ani3d = animate_3d_decay(net)

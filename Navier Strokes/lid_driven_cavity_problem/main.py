@@ -3,10 +3,20 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 
-np.random.seed(42)
+#np.random.seed(42)
 
 epochs = 15000  
-lr = 2 * 1e-3
+lr = 2*1e-3
+
+""" current_lr = 4e-3
+min_lr = 1e-5        
+patience = 500        
+decay_factor = 0.5   
+
+best_loss = float('inf')
+patience_counter = 0
+ """ 
+
 Re = 100.0
 nu = 1.0 / Re
 
@@ -180,8 +190,9 @@ class PINN:
             layer.step(grads[i], lr)
 
 # Architecture (Outputs: psi, p)
-net = PINN([2, 64, 64, 64, 64, 2])
+net = PINN([2, 64,64,64,64, 2])
 loss_history = []
+
 
 # TRAINING LOOP
 for ep in range(epochs):
@@ -222,7 +233,7 @@ for ep in range(epochs):
     gpde = net.backward(d_out, d_ox, d_oy, d_oxx, d_oyy, d_oxy, d_oxxx, d_oxxy, d_oxyy, d_oyyy)
 
     # --- 2. LID-DRIVEN CAVITY BOUNDARY CONDITIONS ---
-    N_bc = 100 # Points per boundary side
+    """ N_bc = 100 # Points per boundary side
     x_b = np.random.rand(N_bc)
     y_b = np.random.rand(N_bc)
 
@@ -240,6 +251,27 @@ for ep in range(epochs):
 
     # Right boundary (Stationary: u=0, v=0)
     X_right = np.vstack([np.ones_like(y_b), y_b])
+    u_right_tgt = np.zeros(N_bc) """
+    
+    N_bc = 250 
+    epsilon = 1e-3
+    x_b = np.random.uniform(epsilon, 1.0 - epsilon, N_bc)
+    y_b = np.random.uniform(epsilon, 1.0 - epsilon, N_bc)
+
+    # Top boundary (Moving wall: u=1, v=0)
+    X_top = np.vstack([x_b, np.ones_like(x_b)])
+    u_top_tgt = np.ones(N_bc)
+    
+    # Bottom boundary (Stationary: u=0, v=0)
+    X_bot = np.vstack([x_b, np.zeros_like(x_b)])
+    u_bot_tgt = np.zeros(N_bc)
+    
+    # Left boundary (Stationary: u=0, v=0)
+    X_left = np.vstack([np.zeros_like(y_b), y_b])
+    u_left_tgt = np.zeros(N_bc)
+    
+    # Right boundary (Stationary: u=0, v=0)
+    X_right = np.vstack([np.ones_like(y_b), y_b])
     u_right_tgt = np.zeros(N_bc)
 
     # Combine boundaries
@@ -247,22 +279,22 @@ for ep in range(epochs):
 
     # Targets
     u_tgt = np.hstack([u_top_tgt, u_bot_tgt, u_left_tgt, u_right_tgt]).reshape(1, -1)
-    v_tgt = np.zeros_like(u_tgt) # v is zero on all walls
+    v_tgt = np.zeros_like(u_tgt) 
     psi_tgt = np.zeros_like(u_tgt) # The cavity boundary is a closed streamline (psi = 0)
 
     out_bc, ox_bc, oy_bc, oxx_bc, oyy_bc, oxy_bc, oxxx_bc, oxxy_bc, oxyy_bc, oyyy_bc = net.forward(Xbc)
 
-    # Network predictions on boundary
     psi_bc = out_bc[0:1,:]
     u_bc, v_bc = oy_bc[0:1,:], -ox_bc[0:1,:]
 
-    # Calculate boundary loss (Velocity + Stream function anchoring)
-    loss_bc = np.mean(logcosh(u_bc - u_tgt)) + np.mean(logcosh(v_bc - v_tgt)) + np.mean(logcosh(psi_bc - psi_tgt))
+
+    bc_w = 70
+    loss_bc = bc_w * (np.mean(logcosh(u_bc - u_tgt)) + np.mean(logcosh(v_bc - v_tgt)) + np.mean(logcosh(psi_bc - psi_tgt)))
 
     # BC Backprop
-    du_bc = np.tanh(u_bc - u_tgt) / 400.0
-    dv_bc = np.tanh(v_bc - v_tgt) / 400.0
-    dpsi_bc = np.tanh(psi_bc - psi_tgt) / 400.0
+    du_bc = (np.tanh(u_bc - u_tgt) / 400.0) 
+    dv_bc = (np.tanh(v_bc - v_tgt) / 400.0) 
+    dpsi_bc = (np.tanh(psi_bc - psi_tgt) / 400.0) 
 
     d_bc_out, d_bc_ox, d_bc_oy, d_bc_oxx, d_bc_oyy, d_bc_oxy = [np.zeros_like(out_bc) for _ in range(6)]
     d_bc_oxxx, d_bc_oxxy, d_bc_oxyy, d_bc_oyyy = [np.zeros_like(out_bc) for _ in range(4)]
@@ -275,10 +307,9 @@ for ep in range(epochs):
     gbc = net.backward(d_bc_out, d_bc_ox, d_bc_oy, d_bc_oxx, d_bc_oyy, d_bc_oxy,
                        d_bc_oxxx, d_bc_oxxy, d_bc_oxyy, d_bc_oyyy)
 
-    # === FIXED: Explicit explicit loop to guarantee safe arrays ===
     grads = []
     for g1, g2 in zip(gpde, gbc):
-        dW_combined = g1[0] + g2[0] # Corrected line
+        dW_combined = g1[0] + g2[0] 
         db_combined = g1[1] + g2[1]
         grads.append((dW_combined, db_combined))
 
@@ -286,8 +317,24 @@ for ep in range(epochs):
 
     total_loss = loss_pde + loss_bc
     loss_history.append(total_loss)
+    
+    """ if total_loss < best_loss:
+        best_loss = total_loss
+        patience_counter = 0  # Reset counter because we found a new best loss!
+    else:
+        patience_counter += 1 # Increment counter because loss didn't improve
+        
+    # If the loss hasn't improved for 'patience' epochs, drop the LR
+    if patience_counter >= patience:
+        old_lr = current_lr
+        current_lr = max(current_lr * decay_factor, min_lr)
+        patience_counter = 0  # Reset counter to give the new LR time to work
+        
+        # Only print if we actually dropped it (to avoid spam if we hit min_lr)
+        if current_lr < old_lr:
+            print(f"--- Loss plateaued. Dropping LR from {old_lr:.6f} to {current_lr:.6f} ---") """
 
-    if ep % 500 == 0:
+    if ep % 1000 == 0:
         print(f"Epoch {ep} | Loss = {total_loss:.6f}")
 
 # VISUALIZATION
@@ -314,11 +361,13 @@ contour1 = axs[0, 0].contourf(X, Y, speed, 100, cmap='jet') # Fixed index
 axs[0, 0].set_title("Velocity Magnitude Predicted") # Fixed index
 fig.colorbar(contour1, ax=axs[0, 0]) # Fixed index
 
+
 # 2. Streamlines (Primary Vortex)
 axs[0, 1].streamplot(X, Y, u_pred, v_pred, color=speed, cmap='jet', density=1.5) # Fixed index
 axs[0, 1].set_title("Predicted Flow Streamlines") # Fixed index
 axs[0, 1].set_xlim([0, 1]) # Fixed xlim to match problem domain
 axs[0, 1].set_ylim([0, 1]) # Fixed ylim to match problem domain
+
 
 # 3. Horizontal Velocity (u)
 contour3 = axs[1, 0].contourf(X, Y, u_pred, 100, cmap='jet') # Fixed index
@@ -332,6 +381,7 @@ fig.colorbar(contour4, ax=axs[1, 1])
 
 plt.tight_layout()
 plt.show()
+
 
 # Training Loss Curve
 plt.figure(figsize=(8,5))

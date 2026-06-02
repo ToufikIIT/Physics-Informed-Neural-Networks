@@ -34,10 +34,6 @@ $$
 
 Default viscosity is $\nu = 1 / Re$ with $Re=100$.
 
-## Files
-
-- [main.py](main.py): NumPy PINN with manual derivatives up to third order and log-cosh loss.
-- [pytorch.py](pytorch.py): PyTorch PINN with autograd, Adam + L-BFGS, and benchmark plots.
 
 ## Requirements
 
